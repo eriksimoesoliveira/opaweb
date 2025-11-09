@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mural – Linhas listradas (16 jogadores)</title>
+<style>
+:root{
+  --row-max-w: 1200px;
+  --page-bg: #0e2231;
+
+  /* espaçamento/alinhamento azul */
+  --blue-start: 28%;
+  --blue-end: 88%;
+  --blue-count: 8;
+  --blue-gap: calc((var(--blue-end) - var(--blue-start)) / (var(--blue-count) - 1));
+
+  /* dourado */
+  --gold-start: 10%;
+  --gold-end: 90%;
+  --gold-count: 10;
+  --gold-gap: calc((var(--gold-end) - var(--gold-start)) / (var(--gold-count) - 1));
+
+  /* placeholders */
+  --dot-fill: rgba(12,32,46,.85);
+  --dot-stroke: rgba(0,0,0,.55);
+  --hover-scale: 1.06;
+
+  /* listras (cards) — MAIS CLAROS */
+  --stripe-a: #1a3f53;
+  --stripe-b: #21546e;
+  --stripe-border: rgba(255,255,255,.12);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--page-bg);
+  font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial;
+}
+
+/* Container do mural */
+.mural{
+  width:min(100% - 32px, var(--row-max-w));
+  margin:24px auto 40px;
+  display:flex; flex-direction:column; gap:10px;
+}
+
+/* Cada jogador = 1 bloco “listrado” com 2 faixas (azul + dourada) */
+.player{
+  background: var(--stripe-a);
+  border:1px solid var(--stripe-border);
+  border-radius:14px;
+  padding:10px;
+  box-shadow: 0 3px 14px rgba(0,0,0,.22);
+}
+.player:nth-of-type(even){
+  background: var(--stripe-b);
+}
+
+/* Espaço interno entre as duas faixas do mesmo jogador */
+.player .stack{
+  display:flex; flex-direction:column; gap:6px;
+}
+
+/* Faixa base (imagem) */
+.row{
+  position:relative; border-radius:10px; overflow:visible; /* tooltips não cortam */
+}
+.base{ display:block; width:100%; height:auto; }
+
+/* Placeholders (azul/dourado) */
+.dot,.gdot{
+  position:absolute; top:52%; transform:translate(-50%,-50%);
+  aspect-ratio:1/1; border-radius:50%; cursor:pointer;
+  transition: transform .16s, box-shadow .16s, background .16s;
+}
+.dot{
+  height:24%; background:var(--dot-fill); border:2px solid var(--dot-stroke);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.04), 0 6px 14px rgba(0,0,0,.35);
+}
+.dot:hover{
+  transform:translate(-50%,-50%) scale(var(--hover-scale));
+  box-shadow: 0 0 22px 8px rgba(123,201,255,.4);
+}
+.gdot{
+  height:22%; background:rgba(0,0,0,.4); border:2px solid rgba(110,74,18,.55);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.35);
+}
+.gdot:hover{
+  transform:translate(-50%,-50%) scale(1.06);
+  background:radial-gradient(closest-side,rgba(255,140,0,.3),rgba(255,140,0,0)70%);
+  box-shadow:0 0 22px 8px rgba(255,122,26,.25),0 0 40px 14px rgba(255,122,26,.2);
+}
+
+/* Tooltips */
+.dot::after,.badge-wrap::after,.gdot::after{
+  content:attr(data-tip);
+  position:absolute; left:50%; bottom:100%; transform:translate(-50%,-8px);
+  padding:8px 12px; border-radius:12px; white-space:nowrap;
+  background:rgba(0,20,30,.8); color:#e8f4ff; font-size:13px;
+  backdrop-filter: blur(6px);
+  opacity:0; transition: opacity .18s, transform .18s;
+}
+.dot:hover::after,.badge-wrap:hover::after,.gdot:hover::after{
+  opacity:1; transform:translate(-50%,-14px);
+}
+
+/* Badge real (serve para azul e gold) */
+.badge-wrap{
+  position:absolute; top:52%;
+  transform:translate(-50%,-50%);
+  height:66%; aspect-ratio:1/1; border-radius:50%;
+  cursor:pointer; z-index:5;
+}
+.badge{
+  width:100%; height:100%; border-radius:50%; object-fit:cover;
+  transition: transform .2s;
+}
+.badge-wrap:hover .badge{ transform:scale(var(--hover-scale)); }
+
+/* Golden: menor e respira só no hover */
+.row.golden{ margin-top:-6px; transform-origin:center top; transform:scale(0.94); }
+.row.golden:hover{
+  transform:scale(0.97);
+  box-shadow:
+    0 0 65px 20px rgba(255,255,255,.26),
+    0 0 90px 30px rgba(255,255,255,.18),
+    inset 0 0 30px rgba(255,255,255,.22);
+  animation: breathe 2.2s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{ transform:scale(0.97); box-shadow:0 0 25px 8px rgba(255,255,255,.1), inset 0 0 12px rgba(255,255,255,.07) }
+  50%    { transform:scale(0.99); box-shadow:0 0 45px 16px rgba(255,255,255,.22), inset 0 0 22px rgba(255,255,255,.15) }
+}
+
+/* Lightbox */
+.lightbox{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.85);
+  justify-content:center; align-items:center; z-index:999 }
+.lightbox img{ max-width:80vw; max-height:80vh; border-radius:16px; box-shadow:0 0 40px rgba(0,0,0,.8); cursor:pointer }
+.lightbox.show{ display:flex }
+</style>
+</head>
+<body>
+
+<main class="mural">
+
+  <!-- helper: gera faixa azul (com ou sem badge) -->
+  <!-- Para cada jogador, troque o src da imagem base e mantenha os placeholders -->
+  <!-- Badge da semana 1 vai apenas no primeiro ponto (left: blue-start + 0*blue-gap) quando aplicável -->
+
+  <!-- ========== 1. CHALK ========== -->
+  <section class="player" aria-label="Chalk">
+    <div class="stack">
+      <section class="row" aria-label="Chalk">
+        <img class="base" src="mural/chalk.png" alt="Chalk">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Chalk">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Chalk">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 2. KICK ========== -->
+  <section class="player" aria-label="Kick">
+    <div class="stack">
+      <section class="row" aria-label="Kick">
+        <img class="base" src="mural/kick.png" alt="Kick">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Kick">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Kick">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 3. FLAVIN ========== -->
+  <section class="player" aria-label="Flavin">
+    <div class="stack">
+      <section class="row" aria-label="Flavin">
+        <img class="base" src="mural/flavin.png" alt="Flavin">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Flavin">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Flavin">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 4. FREEMAN ========== -->
+  <section class="player" aria-label="Freeman">
+    <div class="stack">
+      <section class="row" aria-label="Freeman">
+        <img class="base" src="mural/freeman.png" alt="Freeman">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Freeman">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Freeman">
+        <!-- GOLDEN Eco-ACE na primeira posição -->
+        <div class="badge-wrap" style="left:calc(var(--gold-start) + 0*var(--gold-gap)); height:60%" data-tip="Eco-ACE - matar 5k no round Eco">
+          <img class="badge" src="badges/insignia-ecoace.png" alt="Eco-ACE" onclick="openLightbox(this.src)">
+        </div>
+        <!-- Restantes placeholders -->
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 5. CANIDA ========== -->
+  <section class="player" aria-label="Canida">
+    <div class="stack">
+      <section class="row" aria-label="Canida">
+        <img class="base" src="mural/canida.png" alt="Canida">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Canida">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Canida">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 6. RAFA ========== -->
+  <section class="player" aria-label="Rafa">
+    <div class="stack">
+      <section class="row" aria-label="Rafa">
+        <img class="base" src="mural/rafa.png" alt="Rafa">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Rafa">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Rafa">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 7. MARLON ========== -->
+  <section class="player" aria-label="Marlon">
+    <div class="stack">
+      <section class="row" aria-label="Marlon">
+        <img class="base" src="mural/marlon.png" alt="Marlon">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Marlon">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Marlon">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 8. JALIM ========== -->
+  <section class="player" aria-label="Jalim">
+    <div class="stack">
+      <section class="row" aria-label="Jalim">
+        <img class="base" src="mural/jalim.png" alt="Jalim">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Jalim">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Jalim">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 9. MOHAWK ========== -->
+  <section class="player" aria-label="Mohawk">
+    <div class="stack">
+      <section class="row" aria-label="Mohawk">
+        <img class="base" src="mural/mohawk.png" alt="Mohawk">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Mohawk">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Mohawk">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 10. TUCAO ========== -->
+  <section class="player" aria-label="Tucao">
+    <div class="stack">
+      <section class="row" aria-label="Tucao">
+        <img class="base" src="mural/tucao.png" alt="Tucao">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Tucao">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Tucao">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 11. ELVIS ========== -->
+  <section class="player" aria-label="Elvis">
+    <div class="stack">
+      <section class="row" aria-label="Elvis">
+        <img class="base" src="mural/elvis.png" alt="Elvis">
+        <!-- sem Week1 -->
+        <div class="dot" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - (sem badge)"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Elvis">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Elvis">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 12. RIBA ========== -->
+  <section class="player" aria-label="Riba">
+    <div class="stack">
+      <section class="row" aria-label="Riba">
+        <img class="base" src="mural/riba.png" alt="Riba">
+        <div class="badge-wrap" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - Jogar 3 Partidas">
+          <img class="badge" src="badges/insignia-semana1.png" alt="Insígnia Semana 1" onclick="openLightbox(this.src)">
+        </div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Riba">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Riba">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 13. RAMONE ========== -->
+  <section class="player" aria-label="Ramone">
+    <div class="stack">
+      <section class="row" aria-label="Ramone">
+        <img class="base" src="mural/ramone.png" alt="Ramone">
+        <!-- sem Week1 -->
+        <div class="dot" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - (sem badge)"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Ramone">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Ramone">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 14. SERGIN ========== -->
+  <section class="player" aria-label="Sergin">
+    <div class="stack">
+      <section class="row" aria-label="Sergin">
+        <img class="base" src="mural/sergin.png" alt="Sergin">
+        <!-- sem Week1 -->
+        <div class="dot" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - (sem badge)"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Sergin">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Sergin">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 15. MARCEL ========== -->
+  <section class="player" aria-label="Marcel">
+    <div class="stack">
+      <section class="row" aria-label="Marcel">
+        <img class="base" src="mural/marcel.png" alt="Marcel">
+        <!-- sem Week1 -->
+        <div class="dot" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - (sem badge)"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Marcel">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Marcel">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========== 16. ARVORE ========== -->
+  <section class="player" aria-label="Arvore">
+    <div class="stack">
+      <section class="row" aria-label="Arvore">
+        <img class="base" src="mural/arvore.png" alt="Arvore">
+        <!-- sem Week1 -->
+        <div class="dot" style="left:calc(var(--blue-start) + 0*var(--blue-gap))" data-tip="Week 1 - (sem badge)"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 1*var(--blue-gap))" data-tip="Week 2 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 2*var(--blue-gap))" data-tip="Week 3 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 3*var(--blue-gap))" data-tip="Week 4 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 4*var(--blue-gap))" data-tip="Week 5 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 5*var(--blue-gap))" data-tip="Week 6 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 6*var(--blue-gap))" data-tip="Week 7 - Coming Soon"></div>
+        <div class="dot" style="left:calc(var(--blue-start) + 7*var(--blue-gap))" data-tip="Week 8 - Coming Soon"></div>
+      </section>
+      <section class="row golden" aria-label="Golden - Arvore">
+        <img class="base" src="mural/golden.png" alt="Golden Row - Arvore">
+        <div class="gdot" style="left:calc(var(--gold-start) + 0*var(--gold-gap))" data-tip="Golden 1 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 1*var(--gold-gap))" data-tip="Golden 2 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 2*var(--gold-gap))" data-tip="Golden 3 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 3*var(--gold-gap))" data-tip="Golden 4 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 4*var(--gold-gap))" data-tip="Golden 5 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 5*var(--gold-gap))" data-tip="Golden 6 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 6*var(--gold-gap))" data-tip="Golden 7 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 7*var(--gold-gap))" data-tip="Golden 8 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 8*var(--gold-gap))" data-tip="Golden 9 - Coming Soon"></div>
+        <div class="gdot" style="left:calc(var(--gold-start) + 9*var(--gold-gap))" data-tip="Golden 10 - Coming Soon"></div>
+      </section>
+    </div>
+  </section>
+
+</main>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img src="" alt="Zoom badge">
+</div>
+<script>
+function openLightbox(src){
+  const box=document.getElementById('lightbox');
+  box.querySelector('img').src=src;
+  box.classList.add('show');
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('show');
+}
+</script>
+
+</body>
+</html>
