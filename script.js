@@ -51,9 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 sectionElement.innerHTML = data;
 
                 // Only run loadLevels when "members" section is activated
-                if (sectionId === 'members') {
-                    loadLevels();
-                }
+                //if (sectionId === 'members') {
+                //    loadLevels();
+                //}
             })
             .catch(error => console.error("Error loading section:", error));
     }
@@ -132,6 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // Listen for popstate event to handle back/forward button navigation
 window.addEventListener('popstate', () => {
     const sectionId = history.state.sectionId;
-    loadSection(sectionId);
 });
 
+function toggleBadges(element) {
+    const card = element.parentElement;
+    card.classList.toggle("expanded");
+}

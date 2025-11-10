@@ -228,3 +228,82 @@ footer {
     }
     
 }
+
+
+.badges-container {
+    width: 90%;
+    max-width: 800px;
+    margin: 1rem auto;
+}
+
+.player-card {
+    background-color: #1c1c1c;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+
+.player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 1rem;
+}
+
+.player-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 1rem;
+}
+
+.player-info {
+    flex-grow: 1;
+}
+
+.arrow {
+    font-size: 1.2rem;
+    transition: transform 0.3s;
+}
+
+.player-card.expanded .arrow {
+    transform: rotate(180deg);
+}
+
+.badges-grid {
+    display: none;
+    padding: 1rem;
+    border-top: 1px solid #333;
+    background-color: #181818;
+}
+
+.player-card.expanded .badges-grid {
+    display: block;
+}
+
+.badges-grid h3 {
+    margin: 0.5rem 0;
+    color: #ff8800;
+}
+
+.badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1rem;
+}
+
+.badge {
+    width: 50px;
+    height: 50px;
+    border-radius: 6px;
+    transition: opacity 0.3s;
+}
+
+    .badge.silhouette {
+        opacity: 0.2;
+        filter: grayscale(100%);
+    }
