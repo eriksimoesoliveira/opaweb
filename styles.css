@@ -229,7 +229,7 @@ footer {
     
 }
 
-
+/* Badges */
 .badges-container {
     width: 90%;
     max-width: 800px;
@@ -244,17 +244,21 @@ footer {
     box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
+.player-card h2 {
+    margin-bottom: 0;
+} 
+
 .player-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     cursor: pointer;
-    padding: 1rem;
+    padding: 0 1rem 0 1rem;
 }
 
 .player-icon {
-    width: 50px;
-    height: 50px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
     object-fit: cover;
     margin-right: 1rem;
@@ -296,14 +300,42 @@ footer {
     margin-bottom: 1rem;
 }
 
-.badge {
+/*.badge {
     width: 50px;
     height: 50px;
     border-radius: 6px;
     transition: opacity 0.3s;
+}}*/
+
+.badge.silhouette {
+    opacity: 0.2;
+    filter: grayscale(100%);
 }
 
-    .badge.silhouette {
-        opacity: 0.2;
-        filter: grayscale(100%);
-    }
+.badge {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+    cursor: pointer;
+}
+
+/* scale & glow when hovered */
+.badge:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 12px rgba(255, 200, 80, 0.7);
+    filter: brightness(1.2);
+    z-index: 2;
+}
+
+/* earned badges: subtle shine */
+.badge.earned:hover {
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.9);
+    filter: brightness(1.4);
+}
+
+/* silhouette (unearned) badges: softer blueish glow */
+.badge.silhouette:hover {
+    box-shadow: 0 0 12px rgba(120, 180, 255, 0.5);
+    filter: brightness(1.1);
+}
