@@ -114,24 +114,24 @@
             },
             {
                 id: 6,
-                name: "Aguarde!",
-                description: "Aguarde!",
-                score: 0,
-                image: placeholder
+                name: "Semana 3: O Desbravador (Bronze)",
+                description: "Jogar 4 diferentes mapas na semana 3",
+                score: 10,
+                image: "badges/Week 3 - Easy.png"
             },
             {
                 id: 7,
-                name: "Aguarde!",
-                description: "Aguarde!",
-                score: 0,
-                image: placeholder
+                name: "Semana 3: O Desbravador (Prata)",
+                description: "Jogar 5 diferentes mapas na semana 3",
+                score: 10,
+                image: "badges/Week 3 - Normal.png"
             },
             {
                 id: 8,
-                name: "Aguarde!",
-                description: "Aguarde!",
-                score: 0,
-                image: placeholder
+                name: "Semana 3: O Desbravador (Ouro)",
+                description: "Jogar 7 diferentes mapas na semana 3",
+                score: 10,
+                image: "badges/Week 3 - Hard.png"
             },
             {
                 id: 9,
@@ -298,10 +298,10 @@
             ,
             {
                 id: 118,
-                name: "Secreta",
-                description: "Esta badge é secreta, nenhum jogador a conseguiu ainda.",
-                score: 0,
-                image: placeholder
+                name: "Deus do Trovao",
+                description: "Matar 10 inimigos com a Zeus",
+                score: 30,
+                image: "badges/ChatGPT Image 12 de nov. de 2025, 20_22_37-Photoroom.png"
             },
             ,
             {
@@ -322,14 +322,14 @@
             {
                 name: "Chalkzera",
                 icon: "https://avatars.steamstatic.com/2fe771fa3a9ff244c7ac87f920aaff328b4373f6_full.jpg",
-                weeklyEarned: [0,1,2],
-                extraEarned: [],
+                weeklyEarned: [0, 1, 2, 3, 4, 5],
+                extraEarned: [118],
             },
             {
                 name: "Ғ Γ Ε Ε Ϻ Λ И",
                 icon: "https://avatars.steamstatic.com/b5b70f62f61309c07f5c5eeec1e93be83759fbbb_full.jpg",
-                weeklyEarned: [0, 1,2,3,4,5],
-                extraEarned: [104],
+                weeklyEarned: [0, 1, 2, 3, 4, 5],
+                extraEarned: [104, 108],
             },
             {
                 name: "flavin",
@@ -352,7 +352,7 @@
             {
                 name: "Mark",
                 icon: "https://avatars.steamstatic.com/b7a198202a491dd17f29437db6bf17393104da7d_full.jpg",
-                weeklyEarned: [0,1,2],
+                weeklyEarned: [0,1,2,3,4],
                 extraEarned: [],
             },
             {
@@ -370,7 +370,7 @@
             {
                 name: "Cezinho",
                 icon: "https://avatars.steamstatic.com/7801e665fec735a18793d8b5fce9ed4baeeeac3a_full.jpg",
-                weeklyEarned: [0],
+                weeklyEarned: [0,3,4],
                 extraEarned: [],
             },
             {
@@ -406,7 +406,7 @@
             {
                 name: "TUCAO",
                 icon: "https://avatars.steamstatic.com/ddc46eb16112a3d755acbae6a6cbbd1d4bd682ee_full.jpg",
-                weeklyEarned: [0,1],
+                weeklyEarned: [0,1,3,4,5],
                 extraEarned: [],
             },
         ];
@@ -417,7 +417,7 @@
                 const cls = `badge ${earned ? "earned" : "silhouette"}`;
                 const src = badge.image;
                 const tooltip = `${badge.name}&#10;${badge.description}&#10;${badge.score}pts`;
-                return `<img src="${src}" class="${cls}" title="${tooltip}" alt="${badge.name}" />`;
+                return `<img src="${src}" class="${cls}" title="${tooltip}" alt="${badge.name}" data-id="${badge.id}" />`;
             }).join("");
         }
 
@@ -467,6 +467,46 @@
         ).reverse();
         badgesContainer.innerHTML = players.map(createPlayerCard).join("");
         document.querySelectorAll('#section .player-card.expanded').forEach(c => c.classList.remove('expanded'));
+
+        // Modal references
+        const modal = document.getElementById("badge-modal");
+        const modalImg = document.getElementById("badge-modal-img");
+        const modalName = document.getElementById("badge-modal-name");
+        const modalDesc = document.getElementById("badge-modal-desc");
+        const modalClose = document.getElementById("badge-modal-close");
+        const allBadges = {};
+        badgesWeekly.forEach(b => allBadges[b.id] = b);
+        badgesExtras.forEach(b => allBadges[b.id] = b);
+
+        // When clicking any badge
+        document.querySelectorAll(".badge").forEach(badge => {
+            badge.addEventListener("click", () => {
+                const badgeId = badge.getAttribute("data-id");
+                console.log(badgeId)
+                console.log("a - " + allBadges)
+                //const badgeData = [...badgesExtras, ...badgesWeekly].find(b => b.id === badgeId);
+                const badgeData = allBadges[badgeId];
+
+                modalImg.src = badgeData.image;
+                modalName.textContent = badgeData.name;
+                modalDesc.textContent = badgeData.description;
+
+                modal.style.display = "flex";
+            });
+        });
+
+        // Close modal
+        modalClose.addEventListener("click", () => {
+            modal.style.display = "none";
+        });
+
+        // Close by clicking outside content
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) {
+                modal.style.display = "none";
+            }
+        });
+
     }
 });
 
