@@ -409,6 +409,12 @@
                 weeklyEarned: [0,1,3,4,5],
                 extraEarned: [],
             },
+            {
+                name: "Elvis",
+                icon: "https://avatars.steamstatic.com/9ef731d9c2869e31c7736289304fcf2b099b7a6e_full.jpg",
+                weeklyEarned: [3],
+                extraEarned: [107],
+            },
         ];
 
         function createBadgeRow(badges, earnedIds) {
